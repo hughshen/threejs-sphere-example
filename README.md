@@ -1,6 +1,6 @@
 ## Three.js photo sphere example
 
-Code inspired by this repository: [turban/photosphere](https://github.com/turban/photosphere).
+Code inspired by [turban/photosphere](https://github.com/turban/photosphere) and [three.js canvas - panorama demo](https://github.com/mrdoob/three.js/blob/master/examples/canvas_geometry_panorama.html).
 
 ## Useage
 

@@ -5,7 +5,6 @@
 <script src="./node_modules/three/build/three.min.js"></script>
 <script src="./node_modules/three/examples/js/renderers/Projector.js"></script>
 <script src="./node_modules/three/examples/js/renderers/CanvasRenderer.js"></script>
-<script src="./node_modules/three/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
 
@@ -14,70 +13,272 @@
 <script>
 var container = document.getElementById('container');
 
-var width  = container.offsetWidth,
-    height = container.offsetHeight;
+var SpherePhoto = function() {
 
-var scene = new THREE.Scene();
+    // Container
+    this.container = document.body;
+    this.width = this.container.clientWidth || 900;
+    this.height = this.container.clientHeight || 500;
 
-var camera = new THREE.PerspectiveCamera(75, width / height, 1, 1000);
-camera.position.x = 0.1;
+    // Controls
+    this.controls = defaultControls();
 
-var loader = new THREE.TextureLoader();
-var texture = loader.load('./test.jpg');
-texture.minFilter = THREE.LinearFilter;
-texture.magFilter = THREE.LinearFilter;
-var mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(100, 80, 80),
-    new THREE.MeshBasicMaterial({
-        // map: THREE.ImageUtils.loadTexture('./test.jpg'),
-        map: texture,
-        overdraw: 0.345
-    })
-);
-mesh.scale.x = -1;
-scene.add(mesh);
+    // THREE
+    this.meshOverdraw = 0.345;
 
-var renderer = new THREE.CanvasRenderer();
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(width, height);
+    this.scene = new THREE.Scene();
 
-var controls = new THREE.OrbitControls(camera, container);
-// controls.noPan = true;
-// controls.noZoom = true; 
-// controls.autoRotate = true;
-// controls.autoRotateSpeed = 0.5;
-// controls.rotateLeft(3);
-// controls.rotateUp(.5);
+    this.loader = new THREE.TextureLoader();
 
-container.appendChild(renderer.domElement);
+    this.camera = {};
 
-render();
+    this.renderer = {};
 
-function render() {
-    // controls.update();
-    requestAnimationFrame(render);
-    renderer.render(scene, camera);
-}
+    this.start = function() {
 
-function onDocumentMouseWheel(event) {
-    // camera.fov += event.deltaY * 0.05;
-    event.preventDefault();
-    if (event.wheelDeltaY) { // WebKit
-        camera.fov -= event.wheelDeltaY * 0.05;
-    } else if (event.wheelDelta) {  // Opera / IE9
-        camera.fov -= event.wheelDelta * 0.05;
-    } else if (event.detail) { // Firefox (not working in Firefox V50.1.0)
-        camera.fov += event.detail * 1.0;
-    } else if (event.deltaY) { // Firefox
-        camera.fov += event.deltaY * 1.0;
+        if (!check()) return;
+
+        // Start
+        var mesh = new THREE.Mesh(
+            new THREE.SphereGeometry(100, 80, 80),
+            new THREE.MeshBasicMaterial({
+                map: loadTexture(),
+                overdraw: scope.meshOverdraw
+            })
+        );
+        mesh.scale.x = -1;
+        scope.scene.add(mesh);
+
+        setRenderer();
+
+        scope.container.appendChild(scope.renderer.domElement);
+
+        render();
+
+        scope.container.addEventListener('mousewheel', onMouseWheel, false);
+        scope.container.addEventListener('DOMMouseScroll', onMouseWheel, false);
+        scope.container.addEventListener('mousedown', onMouseDown, false);
+        scope.container.addEventListener('mouseup', onMouseUp, false);
+        scope.container.addEventListener('mouseout', onMouseUp, false);
+        scope.container.addEventListener('mousemove', onMouseMove, false);
+        scope.container.addEventListener('touchstart', onTouchStart, false);
+        scope.container.addEventListener('touchend', onMouseUp, false);
+        scope.container.addEventListener('touchmove', onTouchMove, false);
     }
-    camera.fov = Math.max(30, Math.min(110, camera.fov));
-    camera.updateProjectionMatrix();
+
+    this.end = function() {
+
+        scope.controls = defaultControls();
+
+        scope.scene = new THREE.Scene();
+
+        scope.loader = new THREE.TextureLoader();
+
+        scope.camera = getCamera();
+
+        scope.renderer = {};
+
+        scope.container.removeEventListener('mousewheel', onMouseWheel, false);
+        scope.container.removeEventListener('DOMMouseScroll', onMouseWheel, false);
+        scope.container.removeEventListener('mousedown', onMouseDown, false);
+        scope.container.removeEventListener('mouseup', onMouseUp, false);
+        scope.container.removeEventListener('mouseout', onMouseUp, false);
+        scope.container.removeEventListener('mousemove', onMouseMove, false);
+        scope.container.removeEventListener('touchstart', onTouchStart, false);
+        scope.container.removeEventListener('touchend', onMouseUp, false);
+        scope.container.removeEventListener('touchmove', onTouchMove, false);
+
+        scope.container.innerHTML = '';
+    }
+
+    this.setImage = function(path) {
+        this.imagePath = path;
+    }
+
+    this.setContainer = function(dom) {
+        if (typeof dom !== 'undefined') {
+            scope.container = dom;
+            scope.width = scope.container.clientWidth;
+            scope.height = scope.container.clientHeight;
+            scope.camera = getCamera();
+        }
+    }
+
+    this.controlAuto = function() {
+        scope.controls.autoRotate = true;
+    }
+
+    this.controlStop = function() {
+        scope.controls.autoRotate = false;
+    }
+
+    this.controlLeft = function() {
+        scope.controls.lon -= scope.controls.autoRotateSpeed * 100;
+    }
+
+    this.controlRight = function() {
+        scope.controls.lon += scope.controls.autoRotateSpeed * 100;
+    }
+
+    this.controlUp = function() {
+        scope.controls.lat += scope.controls.autoRotateSpeed * 100;
+    }
+
+    this.controlDown = function() {
+        scope.controls.lat -= scope.controls.autoRotateSpeed * 100;
+    }
+
+    this.controlZoomIn = function() {
+        scope.camera.fov -= 10;
+        setCameraFov();
+    }
+
+    this.controlZoomOut = function() {
+        scope.camera.fov += 10;
+        setCameraFov();
+    }
+
+    var scope = this;
+
+    function check() {
+        if (typeof scope.imagePath === 'undefined') {
+            console.warn('Image is required.' );
+            return false;
+        }
+        if (Object.keys(scope.camera).length === 0) {
+            scope.camera = getCamera();
+        }
+        return true;
+    }
+
+    function defaultControls() {
+        var c = {};
+        c.autoRotate = false;
+        c.autoRotateSpeed = 0.05;
+        c.autoRotateDirection = 'left';
+        c.mouseMoving = false;
+        c.lon = 90;
+        c.lat = 0;
+        c.phi = 0;
+        c.theta = 0;
+        c.target = new THREE.Vector3();
+        return c;
+    }
+
+    function render() {
+        requestAnimationFrame(render);
+        update();
+    }
+
+    function update() {
+        setCameraTarget();
+        scope.renderer.render(scope.scene, scope.camera);
+    }
+
+    function setRenderer() {
+        try {
+            scope.renderer = new THREE.WebGLRenderer({
+                antialias: true
+            });
+        } catch (e) {
+            scope.renderer = new THREE.CanvasRenderer();
+        }
+        scope.renderer.setPixelRatio(window.devicePixelRatio);
+        scope.renderer.setSize(scope.width, scope.height);
+    }
+
+    function getCamera() {
+        var camera = new THREE.PerspectiveCamera(75, scope.width / scope.height, 1, 1000);
+        camera.position.x = 0.1;
+        return camera;
+    }
+
+    function setCameraTarget() {
+        if (scope.controls.autoRotate === true && scope.controls.mouseMoving === false) {
+            if (scope.controls.autoRotateDirection == 'left') {
+                scope.controls.lon -= scope.controls.autoRotateSpeed;
+            } else if (scope.controls.autoRotateDirection == 'right') {
+                scope.controls.lon += scope.controls.autoRotateSpeed;
+            }
+        }
+        scope.controls.lat = Math.max(- 85, Math.min( 85, scope.controls.lat));
+        scope.controls.phi = THREE.Math.degToRad(90 - scope.controls.lat);
+        scope.controls.theta = THREE.Math.degToRad(scope.controls.lon);
+        scope.controls.target.x = Math.sin(scope.controls.phi) * Math.cos(scope.controls.theta);
+        scope.controls.target.y = Math.cos(scope.controls.phi);
+        scope.controls.target.z = Math.sin(scope.controls.phi) * Math.sin(scope.controls.theta);
+        scope.camera.position.copy(scope.controls.target).negate();
+        scope.camera.lookAt(scope.controls.target);
+    }
+
+    function setCameraFov() {
+        scope.camera.fov = Math.max(30, Math.min(110, scope.camera.fov));
+        scope.camera.updateProjectionMatrix();
+    }
+
+    function loadTexture() {
+        var texture = scope.loader.load(scope.imagePath);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        return texture;
+    }
+
+    function onMouseWheel(event) {
+        event.preventDefault();
+        if (event.wheelDeltaY) { // WebKit
+            scope.camera.fov -= event.wheelDeltaY * 0.05;
+        } else if (event.wheelDelta) {  // Opera / IE9
+            scope.camera.fov -= event.wheelDelta * 0.05;
+        } else if (event.detail) { // Firefox
+            scope.camera.fov += event.detail * 1.0;
+        }
+        setCameraFov();
+    }
+    function onMouseDown(event) {
+        handleRotateStart(event, event.clientX, event.clientY);
+    }
+    function onMouseUp(event) {
+        handleRotateEnd(event);
+    }
+    function onMouseMove(event) {
+        handleRotateMove(event, event.clientX, event.clientY);
+    }
+    function onTouchStart(event) {
+        if (event.touches.length == 1) {
+            handleRotateStart(event, event.touches[0].pageX, event.touches[0].pageY)
+        }
+    }
+    function onTouchMove(event) {
+        if (event.touches.length == 1) {
+            handleRotateMove(event, event.touches[0].pageX, event.touches[0].pageY);
+        }
+    }
+    function handleRotateStart(event, X, Y) {
+        event.preventDefault();
+        scope.controls.mouseMoving = true;
+        onPointerDownPointerX = X;
+        onPointerDownPointerY = Y;
+        onPointerDownLon = scope.controls.lon;
+        onPointerDownLat = scope.controls.lat;
+    }
+    function handleRotateMove(event, X, Y) {
+        event.preventDefault();
+        if (scope.controls.mouseMoving === true) {
+            scope.controls.lon = (onPointerDownPointerX - X) * 0.1 + onPointerDownLon;
+            scope.controls.lat = (Y - onPointerDownPointerY) * 0.1 + onPointerDownLat;
+            update();
+        }
+    }
+    function handleRotateEnd(event) {
+        scope.controls.mouseMoving = false;
+    }
 }
 
-container.addEventListener('wheel', onDocumentMouseWheel, false);
-// container.addEventListener('mousewheel', onDocumentMouseWheel, false);
-// container.addEventListener('DOMMouseScroll', onDocumentMouseWheel, false);
+var sp = new SpherePhoto();
+sp.setImage('./test.jpg');
+sp.setContainer(container);
+sp.start();
+console.log(sp);
 </script>
 </body>
 </html>
