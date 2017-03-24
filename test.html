@@ -24,7 +24,7 @@ var SpherePhoto = function() {
     this.controls = defaultControls();
 
     // THREE
-    this.meshOverdraw = 0.345;
+    this.meshOverdraw = 0.4;
 
     this.scene = new THREE.Scene();
 
@@ -34,7 +34,19 @@ var SpherePhoto = function() {
 
     this.renderer = {};
 
+    // Callback
+    this.startCall = null;
+    this.finishedCall = null;
+    this.endCall = null;
+
+    // Image
+    this.imageLoaded = false;
+
     this.start = function() {
+
+        if (typeof scope.startCall === 'function') {
+            scope.startCall.call(scope);
+        }
 
         if (!check()) return;
 
@@ -64,6 +76,10 @@ var SpherePhoto = function() {
         scope.container.addEventListener('touchstart', onTouchStart, false);
         scope.container.addEventListener('touchend', onMouseUp, false);
         scope.container.addEventListener('touchmove', onTouchMove, false);
+
+        if (typeof scope.finishedCall === 'function') {
+            scope.finishedCall.call(scope);
+        }
     }
 
     this.end = function() {
@@ -89,6 +105,10 @@ var SpherePhoto = function() {
         scope.container.removeEventListener('touchmove', onTouchMove, false);
 
         scope.container.innerHTML = '';
+
+        if (typeof scope.endCall === 'function') {
+            scope.endCall.call(scope);
+        }
     }
 
     this.setImage = function(path) {
@@ -104,12 +124,36 @@ var SpherePhoto = function() {
         }
     }
 
+    this.setStartCall = function(call) {
+        if (typeof call === 'function') {
+            scope.startCall = call;
+        }
+    }
+
+    this.setFinishedCall = function(call) {
+        if (typeof call === 'function') {
+            scope.finishedCall = call;
+        }
+    }
+
+    this.setEndCall = function(call) {
+        if (typeof call === 'function') {
+            scope.endCall = call;
+        }
+    }
+
     this.controlAuto = function() {
-        scope.controls.autoRotate = true;
+        scope.controls.autoRotateByUser = true;
+        render();
+    }
+
+    this.controlAutoReverse = function() {
+        scope.controls.autoRotateDirection = scope.controls.autoRotateDirection === 'left' ? 'right' : 'left';
     }
 
     this.controlStop = function() {
         scope.controls.autoRotate = false;
+        scope.controls.autoRotateByUser = false;
     }
 
     this.controlLeft = function() {
@@ -156,6 +200,7 @@ var SpherePhoto = function() {
         c.autoRotate = false;
         c.autoRotateSpeed = 0.05;
         c.autoRotateDirection = 'left';
+        c.autoRotateByUser = false;
         c.mouseMoving = false;
         c.lon = 90;
         c.lat = 0;
@@ -165,9 +210,15 @@ var SpherePhoto = function() {
         return c;
     }
 
+    function isAutoRotate() {
+        return (scope.controls.autoRotate === true || scope.controls.autoRotateByUser === true);
+    }
+
     function render() {
-        requestAnimationFrame(render);
-        update();
+        if (isAutoRotate() || scope.imageLoaded === false) {
+            requestAnimationFrame(render);
+            update();
+        }
     }
 
     function update() {
@@ -194,7 +245,7 @@ var SpherePhoto = function() {
     }
 
     function setCameraTarget() {
-        if (scope.controls.autoRotate === true && scope.controls.mouseMoving === false) {
+        if (isAutoRotate() && scope.controls.mouseMoving === false) {
             if (scope.controls.autoRotateDirection == 'left') {
                 scope.controls.lon -= scope.controls.autoRotateSpeed;
             } else if (scope.controls.autoRotateDirection == 'right') {
@@ -214,9 +265,22 @@ var SpherePhoto = function() {
     function setCameraFov() {
         scope.camera.fov = Math.max(30, Math.min(110, scope.camera.fov));
         scope.camera.updateProjectionMatrix();
+        update();
     }
 
     function loadTexture() {
+        var image = document.createElement('img');
+        image.src = scope.imagePath;
+        image.onload = function() {
+            scope.imageLoaded = true;
+            // Make sure that the renderer will update when image loaded
+            setTimeout(function() {
+                update();
+            }, 10);
+            setTimeout(function() {
+                update();
+            }, 200);
+        }
         var texture = scope.loader.load(scope.imagePath);
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
@@ -277,8 +341,10 @@ var SpherePhoto = function() {
 var sp = new SpherePhoto();
 sp.setImage('./test.jpg');
 sp.setContainer(container);
+sp.setFinishedCall(function() {
+    console.log(this);
+});
 sp.start();
-console.log(sp);
 </script>
 </body>
 </html>
